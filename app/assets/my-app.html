@@ -30,6 +30,8 @@
     <spiral-knob id="knobAmp" label="Amp" value="0.25"></spiral-knob>
   </template>
 
+
+
   <script>
     Polymer({
 
@@ -37,25 +39,25 @@
 
       /* user-defined properties */
       properties: {
-        
+
         context: {
           type: Object,
           value: new AudioContext()
         }
-        
+
       },
 
       /* user-defined methods */
-      _buildAudioGraph: function () {
-        this.context.createNodes(this, {
+      _buildAudioGraph: function test () {
+        this._context = this.context;
+        this._context.createNodes(this, {
           'osc': 'Oscillator',
           'amp': 'Gain'
         });
 
-        this.osc.to(this.amp).to(this.context.DAC);
+        this.osc.to(this.amp);
         this.amp.value = 0.25;
-        this.osc.frequency.value = 220;
-        this.osc.start();
+
       },
 
       _bindUI: function () {
@@ -65,8 +67,103 @@
       /* Polymer built-in event handlers */
       ready: function () {
         console.log('My app is ready!');
-        this._buildAudioGraph();
-        this._bindUI();
+        var context = new AudioContext();
+        console.log(this._buildAudioGraph)
+
+        // this._buildAudioGraph();
+        // this._bindUI();
+        function myVoice(context){
+          this._context = context;
+          this._context.createNodes(this, {
+            'osc': 'Oscillator',
+            'amp': 'Gain'
+          });
+          this.osc.to(this.amp);
+          this.amp.value = 0.25;
+        }
+        myVoice.prototype.to = function (destination) {
+          return this.amp.to(destination);
+        }
+        myVoice.prototype.setParams = function (params) {
+
+        }
+        myVoice.prototype.noteOn = function(pitch, amp, attack, decay) {
+          var now = this._context.now;
+          this.osc.frequency.value = Spiral.mtof(pitch);
+          this.amp.gain.setValueAtTime(0.5, now);
+          this.osc.start(now);
+          this.osc.stop(now + attack + decay);
+        }
+
+        var KeyboardHandler = {
+            _keymap: {
+              '65': 60,   // C4
+              '87': 61,   // C#4
+              '83': 62,   // D4
+              '69': 63,   // D#4
+              '68': 64,   // E4
+              '70': 65,   // F4
+              '84': 66,   // F#4
+              '71': 67,   // G4
+              '89': 68,   // G#4
+              '72': 69,   // A4
+              '85': 70,   // A#4
+              '74': 71,   // B4
+              '75': 72    // C5
+            },
+            _states: [],
+
+            _handleKeyDown: function (event) {
+              var keyCode = event.keyCode;
+              if (!this._keymap[keyCode] || this._states[keyCode])
+                return;
+
+              this._states[keyCode] = true;
+
+              if (this.notify)
+                this.notify('noteon', this._keymap[keyCode]);
+            },
+
+            _handleKeyUp: function (event) {
+              var keyCode = event.keyCode;
+              if (!this._keymap[keyCode] || !this._states[keyCode])
+                return;
+
+              this._states[keyCode] = false;
+
+              if (this.notify)
+                this.notify('noteoff', this._keymap[keyCode]);
+            },
+
+            startListen: function () {
+              window.addEventListener('keydown', this._handleKeyDown.bind(this));
+              window.addEventListener('keyup', this._handleKeyUp.bind(this));
+            },
+
+            notify: null
+
+        };
+
+
+        KeyboardHandler.notify = function(type, pitch){
+          switch (type) {
+            case 'noteon':
+              var voice = new myVoice(context);
+              voice.to(context.DAC);
+              voice.noteOn(pitch, 0.797, 0.05, 0.25 );
+              break;
+            case 'noteoff':
+              break;
+
+          }
+        }
+        KeyboardHandler.startListen();
+
+
+
+
+
+
       },
 
       attached: function () {}
